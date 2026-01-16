@@ -36,11 +36,13 @@ def get_broker_info(metadata) -> list[dict]:
     """Extract broker information from cluster metadata."""
     brokers = []
     for broker_id, broker in metadata.brokers.items():
-        brokers.append({
-            "id": broker_id,
-            "host": broker.host,
-            "port": broker.port,
-        })
+        brokers.append(
+            {
+                "id": broker_id,
+                "host": broker.host,
+                "port": broker.port,
+            }
+        )
     return sorted(brokers, key=lambda x: x["id"])
 
 
@@ -141,19 +143,23 @@ def print_validation_results(results: dict, allowed_brokers: set[int]):
                 if p["violations"]:
                     violation_str = f"Invalid: {p['violations']}"
 
-                table_data.append([
-                    p["id"],
-                    p["leader"],
-                    ",".join(map(str, p["replicas"])),
-                    ",".join(map(str, p["isr"])),
-                    violation_str,
-                ])
+                table_data.append(
+                    [
+                        p["id"],
+                        p["leader"],
+                        ",".join(map(str, p["replicas"])),
+                        ",".join(map(str, p["isr"])),
+                        violation_str,
+                    ]
+                )
 
-            print(tabulate(
-                table_data,
-                headers=["Partition", "Leader", "Replicas", "ISR", "Violations"],
-                tablefmt="simple",
-            ))
+            print(
+                tabulate(
+                    table_data,
+                    headers=["Partition", "Leader", "Replicas", "ISR", "Violations"],
+                    tablefmt="simple",
+                )
+            )
 
     if results["violations"]:
         print("\n=== Violations Detail ===\n")
