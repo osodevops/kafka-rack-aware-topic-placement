@@ -6,8 +6,6 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 cd "$PROJECT_DIR"
 
-BOOTSTRAP_SERVER="localhost:9092"
-
 # Allowed brokers for poc_* topics (DC1 subset)
 ALLOWED_BROKERS="1,2,3"
 

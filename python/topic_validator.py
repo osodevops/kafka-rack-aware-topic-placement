@@ -5,10 +5,10 @@ Kafka Topic Placement Validator
 Validates that all poc_* topics have replicas only on the allowed broker set.
 """
 
-import sys
 import argparse
-from typing import Set, List, Dict, Any
-from confluent_kafka.admin import AdminClient, TopicMetadata
+import sys
+
+from confluent_kafka.admin import AdminClient
 from tabulate import tabulate
 
 
@@ -27,12 +27,12 @@ def get_admin_client(bootstrap_servers: str) -> AdminClient:
     return AdminClient(conf)
 
 
-def get_cluster_metadata(admin: AdminClient) -> Dict[str, Any]:
+def get_cluster_metadata(admin: AdminClient):
     """Fetch cluster metadata."""
     return admin.list_topics(timeout=10)
 
 
-def get_broker_info(metadata) -> List[Dict[str, Any]]:
+def get_broker_info(metadata) -> list[dict]:
     """Extract broker information from cluster metadata."""
     brokers = []
     for broker_id, broker in metadata.brokers.items():
@@ -47,8 +47,8 @@ def get_broker_info(metadata) -> List[Dict[str, Any]]:
 def validate_topic_placement(
     metadata,
     topic_prefix: str,
-    allowed_brokers: Set[int]
-) -> Dict[str, Any]:
+    allowed_brokers: set[int],
+) -> dict:
     """
     Validate that all topics matching the prefix have replicas only on allowed brokers.
 
@@ -112,14 +112,14 @@ def validate_topic_placement(
     return results
 
 
-def print_broker_info(brokers: List[Dict[str, Any]]):
+def print_broker_info(brokers: list[dict]):
     """Print broker information in a table."""
     print("\n=== Cluster Brokers ===\n")
     table_data = [[b["id"], b["host"], b["port"]] for b in brokers]
     print(tabulate(table_data, headers=["ID", "Host", "Port"], tablefmt="simple"))
 
 
-def print_validation_results(results: Dict[str, Any], allowed_brokers: Set[int]):
+def print_validation_results(results: dict, allowed_brokers: set[int]):
     """Print validation results."""
     print("\n=== Validation Results ===\n")
 
@@ -152,7 +152,7 @@ def print_validation_results(results: Dict[str, Any], allowed_brokers: Set[int])
             print(tabulate(
                 table_data,
                 headers=["Partition", "Leader", "Replicas", "ISR", "Violations"],
-                tablefmt="simple"
+                tablefmt="simple",
             ))
 
     if results["violations"]:
@@ -179,28 +179,28 @@ def main():
     parser.add_argument(
         "--bootstrap-servers",
         default=DEFAULT_BOOTSTRAP_SERVERS,
-        help=f"Kafka bootstrap servers (default: {DEFAULT_BOOTSTRAP_SERVERS})"
+        help=f"Kafka bootstrap servers (default: {DEFAULT_BOOTSTRAP_SERVERS})",
     )
     parser.add_argument(
         "--prefix",
         default=DEFAULT_TOPIC_PREFIX,
-        help=f"Topic prefix to validate (default: {DEFAULT_TOPIC_PREFIX})"
+        help=f"Topic prefix to validate (default: {DEFAULT_TOPIC_PREFIX})",
     )
     parser.add_argument(
         "--allowed-brokers",
         default=",".join(map(str, DEFAULT_ALLOWED_BROKERS)),
-        help=f"Comma-separated list of allowed broker IDs (default: {','.join(map(str, DEFAULT_ALLOWED_BROKERS))})"
+        help=f"Comma-separated list of allowed broker IDs (default: {','.join(map(str, DEFAULT_ALLOWED_BROKERS))})",
     )
     parser.add_argument(
         "--quiet",
         action="store_true",
-        help="Only output pass/fail result"
+        help="Only output pass/fail result",
     )
 
     args = parser.parse_args()
 
     # Parse allowed brokers
-    allowed_brokers = set(int(b.strip()) for b in args.allowed_brokers.split(","))
+    allowed_brokers = {int(b.strip()) for b in args.allowed_brokers.split(",")}
 
     try:
         admin = get_admin_client(args.bootstrap_servers)
