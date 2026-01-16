@@ -40,8 +40,16 @@ jobs:
       - name: Run Ruff linter
         run: ruff check python/
 
-      - name: Run Ruff formatter check
-        run: ruff format --check python/
+      - name: Run Ruff formatter (auto-fix)
+        run: ruff format python/
+
+      - name: Check for formatting changes
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Code was reformatted. Please run 'ruff format python/' locally and commit."
+            git diff
+            exit 1
+          fi
 
   validate-compose:
     name: Validate Docker Compose
