@@ -4,13 +4,14 @@ A proof-of-concept demonstrating Apache Kafka's rack-awareness capabilities for 
 
 ## TL;DR
 
-This PoC proves you can **pin specific Kafka topics to specific brokers** while running a multi-datacenter cluster. Topics prefixed with `poc_` are guaranteed to have all replicas on brokers 1, 2, 3 only - never on brokers 4 or 5.
+This PoC proves you can **pin specific Kafka topics to specific brokers** while running a multi-datacenter cluster. Topics prefixed with `poc_` (Docker) or `poc-` (Strimzi) are guaranteed to have all replicas on designated brokers only.
 
-```bash
-./scripts/startup.sh        # Start 5-broker cluster
-./scripts/create-topics.sh  # Create constrained topics
-./scripts/validate-placement.sh  # Verify placement rules
-```
+**Choose your deployment method:**
+
+| Example | Best For | Features |
+|---------|----------|----------|
+| [Docker Compose](./examples/docker-compose/) | Local development, quick testing | 5-broker KRaft cluster, manual replica assignment |
+| [Minikube + Strimzi](./examples/minikube-strimzi/) | Production-like K8s environment | KafkaNodePools, 5 controllers + 5 brokers, Cruise Control |
 
 ---
 
@@ -27,7 +28,7 @@ flowchart LR
 
     subgraph solution[" The Solution"]
         direction TB
-        S1[Rack-Aware Placement] --> S2[Topics pinned to specific brokers]
+        S1[Controlled Placement] --> S2[Topics pinned to specific brokers]
         S2 --> S3[Data stays in designated zones]
         S3 --> S4[Compliance & optimization achieved]
     end
@@ -48,55 +49,94 @@ flowchart LR
 
 ## Architecture Overview
 
-```mermaid
-flowchart TB
-    subgraph cluster["Kafka Cluster"]
-        subgraph dc1["Datacenter 1 (rack: dc1)"]
-            B1["Broker 1<br/>:9091"]
-            B2["Broker 2<br/>:9092"]
-            B3["Broker 3<br/>:9093"]
-            B4["Broker 4<br/>:9094"]
-        end
+### Broker Sets
 
-        subgraph dc2["Datacenter 2 (rack: dc2)"]
-            B5["Broker 5<br/>:9095"]
-        end
-    end
+Both examples use the concept of **broker sets** - logical groupings of brokers for topic placement:
 
-    subgraph topics["Topics"]
-        T1["poc_orders"]
-        T2["poc_payments"]
-        T3["poc_inventory"]
-        T4["other_topics"]
-    end
+| Broker Set | Purpose | Docker Compose | Strimzi |
+|------------|---------|----------------|---------|
+| `poc-brokers` | Topics with data residency requirements | Brokers 1, 2, 3 | Brokers 100, 101, 102 |
+| `general-brokers` | General-purpose topics | Brokers 4, 5 | Brokers 200, 201 |
 
-    T1 & T2 & T3 --> |"Replicas ONLY on"| B1 & B2 & B3
-    T4 --> |"Default distribution"| B1 & B2 & B3 & B4 & B5
+### Topic Placement Enforcement
 
-    style B1 fill:#2d6a4f,color:#fff
-    style B2 fill:#2d6a4f,color:#fff
-    style B3 fill:#2d6a4f,color:#fff
-    style B4 fill:#6c757d,color:#fff
-    style B5 fill:#6c757d,color:#fff
-    style T1 fill:#1971c2,color:#fff
-    style T2 fill:#1971c2,color:#fff
-    style T3 fill:#1971c2,color:#fff
-```
-
-**Key Constraint:** All `poc_*` topics have replicas **exclusively** on brokers 1, 2, 3 (green). Brokers 4 and 5 (gray) never hold `poc_*` data.
+Topics are placed on specific brokers using:
+1. **Manual replica assignment** during topic creation (`--replica-assignment`)
+2. **Cruise Control rebalancing** for ongoing enforcement (Strimzi only)
 
 ---
 
-## What This Proves
+## Quick Start
 
-| Claim | Validation |
-|-------|------------|
-| Topics can be pinned to specific brokers | `poc_*` topics created with `--replica-assignment` specifying only brokers 1,2,3 |
-| Placement is deterministic and reproducible | Same assignment string always produces same broker distribution |
-| Validation can be automated | Shell and Python scripts verify no replicas exist on disallowed brokers |
-| Constraint survives broker operations | Integration tests verify placement after broker failure/recovery |
+### Option 1: Docker Compose (Local Development)
 
-### The Proof
+```bash
+cd examples/docker-compose
+
+# Start cluster (5 brokers in KRaft mode)
+./scripts/startup.sh
+
+# Create topics with controlled placement
+./scripts/create-topics.sh
+
+# Validate placement
+./scripts/validate-placement.sh
+
+# Inspect cluster state
+./scripts/inspect-cluster.sh
+
+# Cleanup
+./scripts/teardown.sh
+```
+
+### Option 2: Minikube + Strimzi (Kubernetes)
+
+```bash
+# Start Minikube with sufficient resources
+minikube start --cpus=4 --memory=8192
+
+cd examples/minikube-strimzi
+
+# Install Strimzi operator
+./setup/install.sh
+
+# Deploy Kafka cluster with NodePools
+./scripts/deploy.sh
+
+# Create topics with controlled placement
+./scripts/create-topics.sh
+
+# Validate placement
+./scripts/validate-placement.sh
+
+# Cleanup
+./scripts/cleanup.sh
+```
+
+---
+
+## Cruise Control Integration
+
+The **Strimzi example** includes [Cruise Control](https://github.com/linkedin/cruise-control) for:
+
+- **Cluster Monitoring**: Real-time metrics collection
+- **Load Analysis**: CPU, disk, and network utilization per broker
+- **Rebalance Proposals**: Suggestions for optimal partition placement
+- **Automatic Enforcement**: Move misplaced topics to correct brokers
+
+> **Note**: The Docker Compose example does not include Cruise Control as there is no official Docker image available. For Cruise Control functionality, use the Strimzi example.
+
+### BrokerSetAwareGoal
+
+Cruise Control 3.0.0+ includes the `BrokerSetAwareGoal` ([PR #1809](https://github.com/linkedin/cruise-control/pull/1809)) which automatically enforces topic placement within designated broker subsets.
+
+---
+
+## Validation
+
+After creating topics, verify placement rules are enforced:
+
+### Docker Compose
 
 ```
 $ ./scripts/validate-placement.sh
@@ -122,89 +162,79 @@ Violations found:   0
 PASSED: All poc_* topics have replicas only on brokers 1 2 3
 ```
 
----
+### Strimzi
 
-## How It Works
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Script as create-topics.sh
-    participant Kafka as Kafka Cluster
-    participant Validator as validate-placement.sh
-
-    User->>Script: Run create-topics.sh
-    Script->>Kafka: kafka-topics --create<br/>--replica-assignment 1:2:3,2:3:1,...
-    Kafka-->>Script: Topic created
-    Script-->>User: Topics created on brokers 1,2,3
-
-    User->>Validator: Run validate-placement.sh
-    Validator->>Kafka: kafka-topics --describe
-    Kafka-->>Validator: Partition metadata
-    Validator->>Validator: Check all replicas ∈ {1,2,3}
-    Validator-->>User: PASSED / FAILED
 ```
+$ ./scripts/validate-placement.sh
 
-**The magic is in the replica assignment string:**
+==========================================
+ Validating Topic Placement (Strimzi)
+==========================================
 
-```bash
---replica-assignment 1:2:3,2:3:1,3:1:2,1:2:3,2:3:1,3:1:2
-                     ─────┬─────────────────────────────
-                          │
-         Partition 0: replicas on brokers 1, 2, 3
-         Partition 1: replicas on brokers 2, 3, 1
-         Partition 2: replicas on brokers 3, 1, 2
-         ... (repeats for 6 partitions)
+Rule: All poc-* topics must have replicas only on brokers: 100 101 102
+
+Checking topic: poc-inventory
+Checking topic: poc-orders
+Checking topic: poc-payments
+
+==========================================
+ Validation Results
+==========================================
+
+Topics checked:     3
+Partitions checked: 18
+Violations found:   0
+
+PASSED: All poc-* topics have replicas only on brokers 100 101 102
 ```
-
-This explicitly tells Kafka exactly which brokers hold each partition's replicas, bypassing default round-robin distribution.
 
 ---
 
-## Prerequisites
+## Repository Structure
 
-- Docker Desktop 4.x+ (with Docker Compose v2)
-- 8GB RAM minimum available for Docker
-- Ports 9091-9095 available
-
-## Quick Start
-
-```bash
-# 1. Start the cluster
-./scripts/startup.sh
-
-# 2. Create sample topics
-./scripts/create-topics.sh
-
-# 3. Validate placement
-./scripts/validate-placement.sh
-
-# 4. Inspect cluster state
-./scripts/inspect-cluster.sh
-
-# 5. Stop the cluster
-./scripts/teardown.sh
+```
+kafka-rack-aware-topic-placement/
+├── README.md                     # This file
+├── PLAN.md                       # Implementation plan
+├── examples/
+│   ├── docker-compose/           # Docker Compose example
+│   │   ├── README.md
+│   │   ├── docker-compose.yml
+│   │   └── scripts/              # Startup, validation, teardown
+│   │
+│   └── minikube-strimzi/         # Strimzi on Kubernetes example
+│       ├── README.md
+│       ├── setup/                # Strimzi operator installation
+│       ├── kafka/                # Kafka + KafkaNodePool CRs
+│       ├── topics/               # KafkaTopic + KafkaRebalance CRs
+│       └── scripts/              # Deploy, validate, cleanup
+│
+├── python/                       # Python validation tool
+│   ├── topic_validator.py
+│   └── requirements.txt
+│
+├── docs/                         # Additional documentation
+│   ├── ARCHITECTURE.md
+│   ├── OPERATIONS.md
+│   ├── QUICK_START.md
+│   ├── TEST_RESULTS.md           # Actual test output
+│   └── TROUBLESHOOTING.md
+│
+└── .github/workflows/            # CI/CD pipelines
+    ├── ci.yml
+    └── integration-test.yml
 ```
 
-## Scripts
-
-| Script | Description |
-|--------|-------------|
-| `scripts/startup.sh` | Start the 5-broker cluster and wait for health |
-| `scripts/create-topics.sh` | Create `poc_orders`, `poc_payments`, `poc_inventory` topics |
-| `scripts/validate-placement.sh` | Verify all `poc_*` topics use only brokers 1,2,3 |
-| `scripts/inspect-cluster.sh` | Display cluster topology and topic distribution |
-| `scripts/teardown.sh` | Stop the cluster (add `--clean` to remove volumes) |
+---
 
 ## Python Validation Tool
 
-For more detailed validation with formatted output:
+For detailed validation with formatted output:
 
 ```bash
-# Install dependencies
 pip install -r python/requirements.txt
 
-# Run validation
+# Run validation against Docker Compose cluster
 python python/topic_validator.py
 
 # Options
@@ -214,95 +244,35 @@ python python/topic_validator.py --prefix "my_"    # Different prefix
 python python/topic_validator.py --allowed-brokers "1,2"  # Different broker set
 ```
 
-## Configuration
-
-### Broker Rack Assignment
-
-| Broker | Node ID | Rack | External Port |
-|--------|---------|------|---------------|
-| kafka-1 | 1 | dc1 | 9091 |
-| kafka-2 | 2 | dc1 | 9092 |
-| kafka-3 | 3 | dc1 | 9093 |
-| kafka-4 | 4 | dc1 | 9094 |
-| kafka-5 | 5 | dc2 | 9095 |
-
-### Topic Placement
-
-Topics with prefix `poc_` are created with manual replica assignment:
-
-```bash
---replica-assignment 1:2:3,2:3:1,3:1:2,1:2:3,2:3:1,3:1:2
-```
-
-This ensures:
-- 6 partitions per topic
-- Replication factor of 3
-- All replicas on brokers 1, 2, 3 only
-- Leadership distributed evenly
-
-## Connecting to the Cluster
-
-```bash
-# Bootstrap servers
-localhost:9091,localhost:9092,localhost:9093,localhost:9094,localhost:9095
-
-# Using kafka-console-producer
-docker exec -it kafka-1 kafka-console-producer \
-  --bootstrap-server kafka-1:29092 \
-  --topic poc_orders
-
-# Using kafka-console-consumer
-docker exec -it kafka-1 kafka-console-consumer \
-  --bootstrap-server kafka-1:29092 \
-  --topic poc_orders \
-  --from-beginning
-```
-
-## Troubleshooting
-
-### Cluster won't start
-
-```bash
-# Check Docker resources
-docker info | grep -E "CPUs|Memory"
-
-# View broker logs
-docker logs kafka-1
-docker logs kafka-2
-```
-
-### Port conflicts
-
-If ports 9091-9095 are in use, modify `docker-compose.yml` port mappings:
-
-```yaml
-ports:
-  - "19091:9091"  # Change external port
-```
-
-### Validation fails
-
-```bash
-# Describe topics to see current assignment
-docker exec kafka-1 kafka-topics \
-  --bootstrap-server kafka-1:29092 \
-  --describe \
-  --topic poc_orders
-```
-
-### Reset cluster
-
-```bash
-./scripts/teardown.sh --clean
-./scripts/startup.sh
-```
+---
 
 ## Technical Details
 
-- **KRaft Mode**: No ZooKeeper dependency (Kafka 3.0+ native metadata management)
-- **Combined Mode**: All brokers serve as both broker and controller
-- **Manual Assignment**: Deterministic replica placement via `--replica-assignment`
-- **Health Checks**: Built-in Docker health checks for startup verification
+| Component | Docker Compose | Strimzi |
+|-----------|---------------|---------|
+| Kafka Version | 3.7.0 | 4.0.0 |
+| Mode | KRaft (no ZooKeeper) | KRaft (no ZooKeeper) |
+| Brokers | 5 (combined broker/controller) | 5 brokers + 5 controllers |
+| Cruise Control | No | Yes (integrated) |
+| Node Pool Support | N/A | Yes (KafkaNodePools) |
+
+---
+
+## Test Results
+
+See [docs/TEST_RESULTS.md](./docs/TEST_RESULTS.md) for actual command outputs from testing both examples.
+
+---
+
+## References
+
+- [Cruise Control BrokerSetAwareGoal PR #1809](https://github.com/linkedin/cruise-control/pull/1809)
+- [Original Issue #1782](https://github.com/linkedin/cruise-control/issues/1782)
+- [Strimzi KafkaNodePools Documentation](https://strimzi.io/docs/operators/latest/deploying#assembly-node-pools-str)
+- [Strimzi Cruise Control Integration](https://strimzi.io/docs/operators/latest/deploying#cruise-control-concepts)
+- [Strimzi Node ID Management Blog](https://strimzi.io/blog/2023/08/23/kafka-node-pools-node-id-management/)
+
+---
 
 ## CI/CD
 
@@ -310,6 +280,8 @@ This repository includes GitHub Actions workflows:
 
 - **CI** (`ci.yml`): Linting (ShellCheck, Ruff) and Docker Compose validation
 - **Integration Test** (`integration-test.yml`): Full cluster spin-up, topic creation, and validation
+
+---
 
 ## License
 

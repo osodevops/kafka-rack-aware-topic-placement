@@ -40,11 +40,11 @@ docker compose down
 if [ "$CLEAN_VOLUMES" = true ]; then
     echo ""
     echo "[2/2] Removing volumes..."
-    docker volume rm kafka-rack-aware-topic-placement_kafka-1-data 2>/dev/null || true
-    docker volume rm kafka-rack-aware-topic-placement_kafka-2-data 2>/dev/null || true
-    docker volume rm kafka-rack-aware-topic-placement_kafka-3-data 2>/dev/null || true
-    docker volume rm kafka-rack-aware-topic-placement_kafka-4-data 2>/dev/null || true
-    docker volume rm kafka-rack-aware-topic-placement_kafka-5-data 2>/dev/null || true
+    docker volume rm docker-compose_kafka-1-data 2>/dev/null || true
+    docker volume rm docker-compose_kafka-2-data 2>/dev/null || true
+    docker volume rm docker-compose_kafka-3-data 2>/dev/null || true
+    docker volume rm docker-compose_kafka-4-data 2>/dev/null || true
+    docker volume rm docker-compose_kafka-5-data 2>/dev/null || true
     echo "  Volumes removed."
 else
     echo ""

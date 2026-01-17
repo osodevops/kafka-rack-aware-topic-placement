@@ -3,15 +3,23 @@ name: Integration Test
 on:
   push:
     branches: [main]
+    paths:
+      - 'examples/docker-compose/**'
+      - 'python/**'
+      - '.github/workflows/integration-test.yml'
   pull_request:
     branches: [main]
+    paths:
+      - 'examples/docker-compose/**'
+      - 'python/**'
+      - '.github/workflows/integration-test.yml'
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
   integration-test:
-    name: Kafka Cluster Integration Test
+    name: Docker Compose Integration Test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -28,14 +36,15 @@ jobs:
           pip install -r python/requirements.txt
 
       - name: Make scripts executable
-        run: chmod +x scripts/*.sh
+        run: chmod +x examples/docker-compose/scripts/*.sh
 
-      - name: Start Kafka cluster
+      - name: Start Kafka cluster with Cruise Control
+        working-directory: examples/docker-compose
         run: |
-          echo "Starting 5-broker Kafka cluster..."
+          echo "Starting 5-broker Kafka cluster + Cruise Control..."
           docker compose up -d
 
-      - name: Wait for cluster health
+      - name: Wait for brokers to become healthy
         run: |
           echo "Waiting for brokers to become healthy..."
           BROKERS="kafka-1 kafka-2 kafka-3 kafka-4 kafka-5"
@@ -64,6 +73,31 @@ jobs:
             fi
           done
 
+      - name: Wait for Cruise Control
+        run: |
+          echo "Waiting for Cruise Control to start (this may take a few minutes)..."
+          MAX_RETRIES=20
+          RETRY_INTERVAL=15
+          retries=0
+
+          while [ $retries -lt $MAX_RETRIES ]; do
+            status=$(docker inspect --format='{{.State.Health.Status}}' "cruise-control" 2>/dev/null || echo "not_found")
+
+            if [ "$status" = "healthy" ]; then
+              echo "cruise-control: healthy"
+              break
+            fi
+
+            echo "cruise-control: $status (attempt $((retries + 1))/$MAX_RETRIES)"
+            retries=$((retries + 1))
+            sleep $RETRY_INTERVAL
+          done
+
+          if [ $retries -eq $MAX_RETRIES ]; then
+            echo "Warning: Cruise Control may still be initializing"
+            docker logs cruise-control --tail 30
+          fi
+
       - name: Verify broker topology
         run: |
           echo "Verifying broker configuration..."
@@ -84,6 +118,7 @@ jobs:
           done
 
       - name: Validate topic placement (shell)
+        working-directory: examples/docker-compose
         run: |
           echo "Running shell-based validation..."
           ./scripts/validate-placement.sh
@@ -104,6 +139,11 @@ jobs:
               --topic "$topic"
           done
 
+      - name: Check Cruise Control state
+        run: |
+          echo "=== Cruise Control State ==="
+          curl -s http://localhost:9090/kafkacruisecontrol/state 2>/dev/null | head -50 || echo "Cruise Control API not yet available"
+
       - name: Test broker failure scenario
         run: |
           echo "Testing broker 3 failure..."
@@ -121,6 +161,7 @@ jobs:
 
       - name: Cleanup
         if: always()
+        working-directory: examples/docker-compose
         run: |
           echo "Stopping cluster..."
           docker compose down -v

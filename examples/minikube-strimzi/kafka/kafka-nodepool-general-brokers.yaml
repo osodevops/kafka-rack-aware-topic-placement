@@ -1,0 +1,52 @@
+---
+# KafkaNodePool for general-purpose brokers
+# 2 broker nodes with predictable node IDs: 200, 201
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaNodePool
+metadata:
+  name: general-brokers
+  labels:
+    strimzi.io/cluster: kafka-poc
+  annotations:
+    # Assign predictable node IDs 200-201 for general brokers
+    # This enables precise broker set configuration in Cruise Control
+    strimzi.io/next-node-ids: "[200-201]"
+spec:
+  replicas: 2
+  roles:
+    - broker
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 20Gi
+        deleteClaim: true
+        class: standard
+  template:
+    pod:
+      metadata:
+        labels:
+          # Label for identifying this broker set
+          broker-set: general
+          data-residency: unrestricted
+      affinity:
+        # Prefer spreading general brokers across nodes for HA
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    broker-set: general
+                topologyKey: kubernetes.io/hostname
+  resources:
+    requests:
+      memory: 2Gi
+      cpu: 500m
+    limits:
+      memory: 4Gi
+      cpu: 2
+  jvmOptions:
+    -Xms: 1g
+    -Xmx: 2g

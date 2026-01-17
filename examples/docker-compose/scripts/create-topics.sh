@@ -30,13 +30,13 @@ for topic in $TOPICS; do
     echo "Creating topic: $topic"
 
     # Check if topic already exists
-    if docker exec kafka-1 kafka-topics --bootstrap-server kafka-1:29092 --list 2>/dev/null | grep -q "^${topic}$"; then
+    if docker exec kafka-1 /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka-1:9092 --list 2>/dev/null | grep -q "^${topic}$"; then
         echo "  - Topic already exists, skipping"
         continue
     fi
 
-    docker exec kafka-1 kafka-topics \
-        --bootstrap-server kafka-1:29092 \
+    docker exec kafka-1 /opt/kafka/bin/kafka-topics.sh \
+        --bootstrap-server kafka-1:9092 \
         --create \
         --topic "$topic" \
         --replica-assignment "$REPLICA_ASSIGNMENT"
@@ -52,8 +52,8 @@ echo ""
 
 for topic in $TOPICS; do
     echo "Topic: $topic"
-    docker exec kafka-1 kafka-topics \
-        --bootstrap-server kafka-1:29092 \
+    docker exec kafka-1 /opt/kafka/bin/kafka-topics.sh \
+        --bootstrap-server kafka-1:9092 \
         --describe \
         --topic "$topic" | grep -E "Topic:|Partition:" | head -7
     echo ""

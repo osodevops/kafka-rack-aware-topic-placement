@@ -1,0 +1,67 @@
+---
+# POC Topics Configuration Reference
+# ==================================
+#
+# IMPORTANT: Strimzi KafkaTopic CRD does not support explicit replica assignments.
+# To create topics with specific broker placement, use kafka-topics.sh directly:
+#
+#   kubectl exec -n kafka kafka-poc-poc-brokers-100 -- /opt/kafka/bin/kafka-topics.sh \
+#     --bootstrap-server kafka-poc-kafka-bootstrap:9092 \
+#     --create \
+#     --topic poc-orders \
+#     --replica-assignment "100:101:102,101:102:100,102:100:101,100:101:102,101:102:100,102:100:101"
+#
+# The replica assignment format is: partition0_replicas,partition1_replicas,...
+# where each partition's replicas are colon-separated broker IDs.
+#
+# Alternatively, use the create-topics.sh script which automates this process.
+
+# This KafkaTopic resource is for documentation purposes only.
+# It shows the desired configuration but cannot enforce replica assignment.
+
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: poc-orders
+  labels:
+    strimzi.io/cluster: kafka-poc
+    broker-set: poc
+    data-residency: restricted
+spec:
+  partitions: 6
+  replicas: 3
+  config:
+    retention.ms: "604800000"  # 7 days
+    min.insync.replicas: "2"
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: poc-payments
+  labels:
+    strimzi.io/cluster: kafka-poc
+    broker-set: poc
+    data-residency: restricted
+spec:
+  partitions: 6
+  replicas: 3
+  config:
+    retention.ms: "604800000"  # 7 days
+    min.insync.replicas: "2"
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: poc-inventory
+  labels:
+    strimzi.io/cluster: kafka-poc
+    broker-set: poc
+    data-residency: restricted
+spec:
+  partitions: 6
+  replicas: 3
+  config:
+    retention.ms: "604800000"  # 7 days
+    min.insync.replicas: "2"

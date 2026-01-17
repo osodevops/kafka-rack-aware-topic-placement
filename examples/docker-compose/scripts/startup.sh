@@ -62,8 +62,9 @@ echo ""
 echo "[3/3] Verifying cluster topology..."
 echo ""
 
-# Show broker information
-docker exec kafka-1 kafka-metadata --snapshot /tmp/kraft-combined-logs/__cluster_metadata-0/00000000000000000000.log --command "broker" 2>/dev/null || true
+# Show cluster ID
+echo "Cluster ID:"
+docker exec kafka-1 /opt/kafka/bin/kafka-cluster.sh cluster-id --bootstrap-server kafka-1:9092 2>/dev/null || true
 
 echo ""
 echo "=========================================="
@@ -74,6 +75,10 @@ echo "Topology:"
 echo "  DC1 (rack: dc1): Brokers 1, 2, 3, 4"
 echo "  DC2 (rack: dc2): Broker 5"
 echo ""
+echo "Broker Sets (for topic placement):"
+echo "  poc-brokers:     Brokers 1, 2, 3 (for poc_* topics)"
+echo "  general-brokers: Brokers 4, 5 (for other topics)"
+echo ""
 echo "Bootstrap servers:"
 echo "  localhost:9091 (broker-1)"
 echo "  localhost:9092 (broker-2)"
@@ -82,6 +87,7 @@ echo "  localhost:9094 (broker-4)"
 echo "  localhost:9095 (broker-5)"
 echo ""
 echo "Next steps:"
-echo "  ./scripts/create-topics.sh    - Create poc_* topics"
-echo "  ./scripts/inspect-cluster.sh  - View cluster state"
+echo "  ./scripts/create-topics.sh      - Create poc_* topics"
+echo "  ./scripts/validate-placement.sh - Verify topic placement"
+echo "  ./scripts/inspect-cluster.sh    - View cluster state"
 echo ""

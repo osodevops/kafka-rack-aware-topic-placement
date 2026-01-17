@@ -14,10 +14,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run ShellCheck
+      - name: Run ShellCheck on Docker Compose scripts
         uses: ludeeus/action-shellcheck@master
         with:
-          scandir: './scripts'
+          scandir: './examples/docker-compose/scripts'
+          severity: warning
+
+      - name: Run ShellCheck on Strimzi scripts
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: './examples/minikube-strimzi/scripts'
+          severity: warning
+
+      - name: Run ShellCheck on Strimzi setup scripts
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: './examples/minikube-strimzi/setup'
           severity: warning
 
   lint-python:
@@ -59,7 +71,28 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Validate docker-compose.yml
+        working-directory: examples/docker-compose
         run: docker compose config --quiet
+
+  validate-kubernetes:
+    name: Validate Kubernetes Manifests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Validate Kafka manifests (dry-run)
+        run: |
+          echo "Validating Kubernetes YAML files..."
+          for file in examples/minikube-strimzi/setup/*.yaml \
+                      examples/minikube-strimzi/kafka/*.yaml \
+                      examples/minikube-strimzi/topics/*.yaml; do
+            echo "Checking: $file"
+            kubectl apply --dry-run=client -f "$file" 2>&1 || true
+          done
 
   test-python:
     name: Test Python

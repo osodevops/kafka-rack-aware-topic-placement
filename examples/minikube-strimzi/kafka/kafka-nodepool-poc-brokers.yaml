@@ -1,0 +1,52 @@
+---
+# KafkaNodePool for POC brokers (topics matching poc_* pattern)
+# 3 broker nodes with predictable node IDs: 100, 101, 102
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaNodePool
+metadata:
+  name: poc-brokers
+  labels:
+    strimzi.io/cluster: kafka-poc
+  annotations:
+    # Assign predictable node IDs 100-102 for POC brokers
+    # This enables precise broker set configuration in Cruise Control
+    strimzi.io/next-node-ids: "[100-102]"
+spec:
+  replicas: 3
+  roles:
+    - broker
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 20Gi
+        deleteClaim: true
+        class: standard
+  template:
+    pod:
+      metadata:
+        labels:
+          # Label for identifying this broker set
+          broker-set: poc
+          data-residency: restricted
+      affinity:
+        # Prefer spreading POC brokers across nodes for HA
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    broker-set: poc
+                topologyKey: kubernetes.io/hostname
+  resources:
+    requests:
+      memory: 2Gi
+      cpu: 500m
+    limits:
+      memory: 4Gi
+      cpu: 2
+  jvmOptions:
+    -Xms: 1g
+    -Xmx: 2g

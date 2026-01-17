@@ -1,0 +1,55 @@
+---
+# KafkaRebalance Custom Resource
+# This triggers Cruise Control to generate and optionally execute rebalancing proposals
+#
+# Usage:
+#   1. Apply this resource: kubectl apply -f kafka-rebalance.yaml -n kafka
+#   2. Check status: kubectl get kafkarebalance -n kafka
+#   3. Approve proposal: kubectl annotate kafkarebalance rebalance-poc strimzi.io/rebalance=approve -n kafka
+#   4. Monitor progress: kubectl get kafkarebalance rebalance-poc -n kafka -w
+#
+# States:
+#   - New: Resource created, waiting for proposal
+#   - PendingProposal: Cruise Control is generating proposal
+#   - ProposalReady: Proposal ready for review/approval
+#   - Rebalancing: Rebalance in progress
+#   - Ready: Rebalance completed successfully
+#   - NotReady: Error occurred
+
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaRebalance
+metadata:
+  name: rebalance-poc
+  labels:
+    strimzi.io/cluster: kafka-poc
+spec:
+  # Rebalance mode: full, add-brokers, or remove-brokers
+  mode: full
+
+  # Goals to use for this rebalance
+  # These override the default goals in Cruise Control config
+  goals:
+    - com.linkedin.kafka.cruisecontrol.analyzer.goals.RackAwareGoal
+    - com.linkedin.kafka.cruisecontrol.analyzer.goals.ReplicaCapacityGoal
+    - com.linkedin.kafka.cruisecontrol.analyzer.goals.DiskCapacityGoal
+    - com.linkedin.kafka.cruisecontrol.analyzer.goals.NetworkInboundCapacityGoal
+    - com.linkedin.kafka.cruisecontrol.analyzer.goals.NetworkOutboundCapacityGoal
+    - com.linkedin.kafka.cruisecontrol.analyzer.goals.ReplicaDistributionGoal
+    - com.linkedin.kafka.cruisecontrol.analyzer.goals.LeaderReplicaDistributionGoal
+
+  # Skip hard goal check (use with caution)
+  skipHardGoalCheck: false
+
+  # Rebalance disk within brokers
+  rebalanceDisk: false
+
+  # Concurrent partition movements
+  concurrentPartitionMovementsPerBroker: 5
+  concurrentIntraBrokerPartitionMovements: 2
+  concurrentLeaderMovements: 1000
+
+  # Replica movement strategies
+  replicaMovementStrategies:
+    - com.linkedin.kafka.cruisecontrol.executor.strategy.PrioritizeSmallReplicaMovementStrategy
+    - com.linkedin.kafka.cruisecontrol.executor.strategy.PrioritizeLargeReplicaMovementStrategy
+    - com.linkedin.kafka.cruisecontrol.executor.strategy.PostponeUrpReplicaMovementStrategy

@@ -41,16 +41,16 @@ echo ""
 
 echo "=== Topics ==="
 echo ""
-docker exec kafka-1 kafka-topics \
-    --bootstrap-server kafka-1:29092 \
+docker exec kafka-1 /opt/kafka/bin/kafka-topics.sh \
+    --bootstrap-server kafka-1:9092 \
     --list 2>/dev/null | grep -v "^__" | sort || echo "(no user topics)"
 echo ""
 
 echo "=== poc_* Topic Details ==="
 echo ""
 
-POC_TOPICS=$(docker exec kafka-1 kafka-topics \
-    --bootstrap-server kafka-1:29092 \
+POC_TOPICS=$(docker exec kafka-1 /opt/kafka/bin/kafka-topics.sh \
+    --bootstrap-server kafka-1:9092 \
     --list 2>/dev/null | grep "^poc_" || true)
 
 if [ -z "$POC_TOPICS" ]; then
@@ -58,8 +58,8 @@ if [ -z "$POC_TOPICS" ]; then
 else
     for topic in $POC_TOPICS; do
         echo "--- $topic ---"
-        docker exec kafka-1 kafka-topics \
-            --bootstrap-server kafka-1:29092 \
+        docker exec kafka-1 /opt/kafka/bin/kafka-topics.sh \
+            --bootstrap-server kafka-1:9092 \
             --describe \
             --topic "$topic" 2>/dev/null | grep -E "Topic:|Partition:"
         echo ""
@@ -79,15 +79,15 @@ if [ -n "$POC_TOPICS" ]; then
 
         for topic in $POC_TOPICS; do
             # Count leadership
-            leaders=$(docker exec kafka-1 kafka-topics \
-                --bootstrap-server kafka-1:29092 \
+            leaders=$(docker exec kafka-1 /opt/kafka/bin/kafka-topics.sh \
+                --bootstrap-server kafka-1:9092 \
                 --describe \
                 --topic "$topic" 2>/dev/null | grep "Leader: $broker_id" | wc -l)
             leader_count=$((leader_count + leaders))
 
             # Count replica membership
-            replicas=$(docker exec kafka-1 kafka-topics \
-                --bootstrap-server kafka-1:29092 \
+            replicas=$(docker exec kafka-1 /opt/kafka/bin/kafka-topics.sh \
+                --bootstrap-server kafka-1:9092 \
                 --describe \
                 --topic "$topic" 2>/dev/null | grep -E "Replicas:.*\b$broker_id\b" | wc -l)
             replica_count=$((replica_count + replicas))

@@ -17,8 +17,8 @@ echo "Rule: All poc_* topics must have replicas only on brokers: $ALLOWED_BROKER
 echo ""
 
 # Get all topics matching poc_*
-POC_TOPICS=$(docker exec kafka-1 kafka-topics \
-    --bootstrap-server kafka-1:29092 \
+POC_TOPICS=$(docker exec kafka-1 /opt/kafka/bin/kafka-topics.sh \
+    --bootstrap-server kafka-1:9092 \
     --list 2>/dev/null | grep "^poc_" || true)
 
 if [ -z "$POC_TOPICS" ]; then
@@ -34,8 +34,8 @@ for topic in $POC_TOPICS; do
     echo "Checking topic: $topic"
 
     # Get partition details
-    DESCRIBE_OUTPUT=$(docker exec kafka-1 kafka-topics \
-        --bootstrap-server kafka-1:29092 \
+    DESCRIBE_OUTPUT=$(docker exec kafka-1 /opt/kafka/bin/kafka-topics.sh \
+        --bootstrap-server kafka-1:9092 \
         --describe \
         --topic "$topic" 2>/dev/null)
 

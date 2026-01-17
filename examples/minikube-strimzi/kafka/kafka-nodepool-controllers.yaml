@@ -1,0 +1,34 @@
+---
+# KafkaNodePool for dedicated controllers
+# 5 controller nodes with predictable node IDs: 0, 1, 2, 3, 4
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaNodePool
+metadata:
+  name: controllers
+  labels:
+    strimzi.io/cluster: kafka-poc
+  annotations:
+    # Assign predictable node IDs 0-4 for controllers
+    strimzi.io/next-node-ids: "[0-4]"
+spec:
+  replicas: 5
+  roles:
+    - controller
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 10Gi
+        deleteClaim: true
+        class: standard
+  resources:
+    requests:
+      memory: 1Gi
+      cpu: 500m
+    limits:
+      memory: 2Gi
+      cpu: 1
+  jvmOptions:
+    -Xms: 512m
+    -Xmx: 1g
